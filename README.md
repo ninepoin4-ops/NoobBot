@@ -19,7 +19,7 @@
 
 **一个带 WebUI 控制面板的 QQ 群聊 AI Bot** · 思维链实时观测 · 配置热更新 · 四层记忆系统
 
-解压即用 · 下载 → `install.bat` → `start.bat` → 浏览器打开 WebUI
+## **解压即用 · 下载 → `install.bat` → `start.bat` → 浏览器打开 WebUI**
 
 <br>
 
