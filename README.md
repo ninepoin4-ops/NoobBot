@@ -3,6 +3,7 @@
 > 一个带 WebUI 控制面板的 QQ 群聊 AI Bot，开箱即用、零外部依赖前端、支持思维链实时观测。
 >
 > A QQ group-chat AI bot with a built-in WebUI dashboard, real-time chain-of-thought observation, hot-reloadable config, and a layered memory system.
+<img width="914"  alt="image" src="https://github.com/user-attachments/assets/6565b6de-d76d-4301-bdab-b8669b420d32" />
 
 ---
 
