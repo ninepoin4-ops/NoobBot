@@ -1,0 +1,40 @@
+# 敏感配置
+.env
+config/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# 运行时数据
+data/
+chroma_data/
+*.log
+
+# NapCat（体积大，需单独下载；见 README）
+napcat/
+
+# 登录缓存
+Quick/
+Scan/
+
+# 临时/测试文件
+_*.py
+_*.txt
+_smoke*
+_*result*
+hits_result.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

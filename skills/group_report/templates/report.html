@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
+  background: linear-gradient(160deg, #fef9ef 0%, #fdf0d5 50%, #fae8c8 100%);
+  color: #4a3728;
+  padding: 0;
+  width: 800px;
+}
+
+.container { padding: 44px 40px; }
+
+/* ── 标题 ── */
+.header {
+  text-align: center;
+  margin-bottom: 34px;
+}
+.header h1 {
+  font-size: 38px;
+  font-weight: 800;
+  color: #d4875e;
+  letter-spacing: 8px;
+  text-shadow: 0 2px 8px rgba(212,135,94,0.15);
+}
+.header .date {
+  font-size: 16px;
+  color: #b8957a;
+  margin-top: 8px;
+}
+.header .divider {
+  width: 140px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #e8b88a, #d4875e, #e8b88a, transparent);
+  border-radius: 2px;
+  margin: 16px auto 0;
+}
+
+/* ── 统计卡片 ── */
+.stats-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+.stat-card {
+  flex: 1;
+  background: #fffaf0;
+  border-radius: 18px;
+  padding: 18px 8px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(212,135,94,0.10);
+  border: 1px solid #f5e6d0;
+}
+.stat-card .icon { font-size: 22px; }
+.stat-card .value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #d4875e;
+  margin: 6px 0 3px;
+}
+.stat-card .label {
+  font-size: 13px;
+  color: #b8957a;
+}
+
+/* ── 章节标题 ── */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f5e6d0;
+}
+.section-title .emoji { font-size: 24px; }
+.section-title.gold .emoji { color: #e8a838; }
+.section-title.blue .emoji { color: #6ab0d6; }
+.section-title.purple .emoji { color: #b58ad6; }
+.section-title.green .emoji { color: #7fc9a8; }
+
+/* ── 排行榜 ── */
+.ranking-list { margin-bottom: 32px; }
+.ranking-item {
+  display: flex;
+  align-items: center;
+  padding: 13px 16px;
+  margin-bottom: 8px;
+  background: #fffaf0;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(212,135,94,0.07);
+  transition: transform 0.15s;
+}
+.ranking-item:hover { transform: translateX(4px); }
+.ranking-item .medal { font-size: 20px; width: 32px; text-align: center; }
+.ranking-item .name { flex: 1; font-size: 16px; font-weight: 600; }
+.ranking-item .title-tag {
+  background: #fdf0d5;
+  color: #d4875e;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-left: 10px;
+  border: 1px solid #f5e0c0;
+}
+.ranking-item .count {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e8a838;
+}
+
+/* ── 话题 ── */
+.topic-list { margin-bottom: 32px; }
+.topic-item {
+  margin-bottom: 12px;
+  padding: 14px 18px;
+  background: #fffaf0;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(212,135,94,0.07);
+  border-left: 4px solid #6ab0d6;
+}
+.topic-item .topic-name { font-size: 17px; font-weight: 700; color: #4a3728; }
+.topic-item .topic-detail { font-size: 14px; color: #8a7a6a; margin-top: 4px; }
+.topic-item .topic-contrib { font-size: 12px; color: #b8957a; margin-top: 3px; }
+
+/* ── 用户称号 ── */
+.title-list { margin-bottom: 32px; }
+.title-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  background: #fffaf0;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(212,135,94,0.07);
+}
+.title-item .avatar-placeholder {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f5ceb0, #eac09a);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(212,135,94,0.2);
+}
+.title-item .info { flex: 1; margin-left: 14px; }
+.title-item .info .name { font-size: 16px; font-weight: 700; }
+.title-item .info .sub {
+  font-size: 13px; color: #8a7a6a; margin-top: 3px;
+}
+.title-item .info .sub .badge {
+  background: #fdf0d5;
+  color: #d4875e;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  border: 1px solid #f5e0c0;
+}
+.title-item .reason {
+  font-size: 12px; color: #b8957a; text-align: right;
+  max-width: 150px;
+}
+
+/* ── 金句 ── */
+.quote-list { margin-bottom: 32px; }
+.quote-item {
+  padding: 14px 18px;
+  margin-bottom: 8px;
+  background: #fffaf0;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(212,135,94,0.07);
+  border-left: 4px solid #e8a838;
+}
+.quote-item .quote-text {
+  font-size: 16px; color: #4a3728;
+  font-style: italic;
+  line-height: 1.5;
+}
+.quote-item .quote-meta {
+  display: flex; justify-content: space-between;
+  margin-top: 6px; font-size: 13px;
+}
+.quote-item .quote-author { color: #8a7a6a; }
+.quote-item .quote-reason { color: #b8957a; }
+
+/* ── 质量锐评 ── */
+.quality-section { margin-bottom: 10px; }
+.quality-title {
+  font-size: 20px; font-weight: 800; color: #d4875e;
+  margin-bottom: 4px;
+}
+.quality-subtitle {
+  font-size: 14px; color: #b8957a;
+  margin-bottom: 16px;
+}
+
+.dimension-item { margin-bottom: 16px; }
+.dimension-header {
+  display: flex; justify-content: space-between;
+  font-size: 15px; margin-bottom: 5px;
+}
+.dimension-name { color: #4a3728; font-weight: 600; }
+.dimension-pct { font-weight: 700; }
+.bar-bg {
+  height: 10px;
+  background: #f5ede0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.6s ease;
+}
+.dimension-comment {
+  font-size: 13px; color: #8a7a6a; margin-top: 3px;
+}
+
+.quality-summary {
+  margin-top: 16px;
+  padding: 14px 18px;
+  background: #fdf0d5;
+  border-radius: 14px;
+  border: 1px solid #f5e0c0;
+  font-size: 15px;
+  color: #d4875e;
+  font-weight: 600;
+}
+
+/* ── 页脚 ── */
+.footer {
+  text-align: center;
+  font-size: 12px;
+  color: #c5a88a;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 2px solid #f5e6d0;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>📊 群 聊 日 报</h1>
+    <div class="date">{{ report.date }}</div>
+    <div class="divider"></div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="icon">📨</div>
+      <div class="value">{{ report.total_messages }}</div>
+      <div class="label">总消息</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">📝</div>
+      <div class="value">{{ report.total_characters }}</div>
+      <div class="label">总字符</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">👥</div>
+      <div class="value">{{ report.participant_count }}</div>
+      <div class="label">发言人数</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">⏰</div>
+      <div class="value">{{ report.most_active_period[:5] }}</div>
+      <div class="label">最活跃</div>
+    </div>
+  </div>
+
+  {% if report.user_activity_ranking %}
+  <div class="section-title gold">
+    <span class="emoji">🏆</span> 今日话痨排行榜
+  </div>
+  <div class="ranking-list">
+    {% set medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣"] %}
+    {% for u in report.user_activity_ranking[:8] %}
+    <div class="ranking-item">
+      <span class="medal">{{ medals[loop.index0] }}</span>
+      <span class="name">{{ u.get('name','') }}</span>
+      {% if u.get('title') %}
+      <span class="title-tag">{{ u['title'] }}</span>
+      {% endif %}
+      <span class="count">{{ u['message_count'] }}条</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if report.topics %}
+  <div class="section-title blue">
+    <span class="emoji">💬</span> 热门讨论话题
+  </div>
+  <div class="topic-list">
+    {% for t in report.topics[:5] %}
+    <div class="topic-item">
+      <div class="topic-name">▸ {{ t.topic }}</div>
+      {% if t.detail %}
+      <div class="topic-detail">{{ t.detail[:80] }}</div>
+      {% endif %}
+      {% if t.contributors %}
+      <div class="topic-contrib">👥 {{ "、".join(t.contributors[:4]) }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if report.user_titles %}
+  <div class="section-title purple">
+    <span class="emoji">🎭</span> 今日群友画像
+  </div>
+  <div class="title-list">
+    {% for t in report.user_titles[:6] %}
+    <div class="title-item">
+      <div class="avatar-placeholder">{{ t.name[:1] }}</div>
+      <div class="info">
+        <div class="name">{{ t.name }}</div>
+        <div class="sub">
+          <span class="badge">{{ t.title }}</span>
+          &nbsp;{{ t.mbti }}
+        </div>
+      </div>
+      {% if t.reason %}
+      <div class="reason">{{ t.reason[:35] }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if report.golden_quotes %}
+  <div class="section-title gold">
+    <span class="emoji">🌟</span> 今日金句
+  </div>
+  <div class="quote-list">
+    {% for q in report.golden_quotes[:4] %}
+    <div class="quote-item">
+      <div class="quote-text">💬 "{{ q.content[:60] }}"</div>
+      <div class="quote-meta">
+        <span class="quote-author">— {{ q.sender or q.user_id or '匿名' }}</span>
+        <span class="quote-reason">{{ q.reason[:30] }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if report.quality_review %}
+  {% set q = report.quality_review %}
+  <div class="section-title green">
+    <span class="emoji">🎯</span> 聊天质量锐评
+  </div>
+  <div class="quality-section">
+    <div class="quality-title">{{ q.title }}</div>
+    {% if q.subtitle %}
+    <div class="quality-subtitle">{{ q.subtitle }}</div>
+    {% endif %}
+    {% set colors = ["#e8786a","#6ac4a8","#6ab8d6","#c5a868","#dda0dd","#e8a060"] %}
+    {% for d in q.dimensions %}
+    <div class="dimension-item">
+      <div class="dimension-header">
+        <span class="dimension-name">{{ d.name }}</span>
+        <span class="dimension-pct" style="color:{{ colors[loop.index0 % 6] }}">{{ d.percentage|int }}%</span>
+      </div>
+      <div class="bar-bg">
+        <div class="bar-fill" style="width:{{ d.percentage|int }}%;background:{{ colors[loop.index0 % 6] }};"></div>
+      </div>
+      {% if d.comment %}
+      <div class="dimension-comment">{{ d.comment[:60] }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% if q.summary %}
+    <div class="quality-summary">📌 {{ q.summary }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    由 赵小阳 Bot 生成 · {{ report.date }}
+  </div>
+
+</div>
+</body>
+</html>

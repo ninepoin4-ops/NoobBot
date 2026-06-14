@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noob Bot 控制台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- 局域网访问警告条（host=0.0.0.0 时显示） -->
+<div id="warn-bar" class="warn-bar hidden">
+  ⚠️ 当前 WebUI 允许局域网访问且无认证，任何人都能修改配置/读取记忆，请谨慎。
+</div>
+
+<div class="app">
+  <!-- 侧边导航 -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-name">Noob Bot</div>
+      <div class="brand-sub" id="brand-bot-name">小白</div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active" data-page="dashboard">📊 <span>仪表盘</span></a>
+      <a class="nav-item" data-page="groups">👥 <span>群聊</span></a>
+      <a class="nav-item" data-page="trace">💭 <span>思维链</span></a>
+      <a class="nav-item" data-page="config">⚙️ <span>配置</span></a>
+      <a class="nav-item" data-page="memory">🧠 <span>记忆</span></a>
+      <a class="nav-item" data-page="skills">🎯 <span>技能</span></a>
+      <a class="nav-item" data-page="tools">🔧 <span>工具</span></a>
+      <a class="nav-item" data-page="logs">📋 <span>日志</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="conn-status" id="conn-status">
+        <span class="dot dot-off"></span><span>未连接</span>
+      </div>
+      <div class="event-counter" id="event-counter">事件 0</div>
+    </div>
+  </aside>
+
+  <!-- 主内容区 -->
+  <main class="main">
+    <!-- 仪表盘 -->
+    <section class="page active" id="page-dashboard">
+      <header class="page-header">
+        <h1>仪表盘</h1>
+        <button class="btn btn-ghost" onclick="refreshDashboard()">刷新</button>
+      </header>
+      <div class="cards" id="dashboard-cards">
+        <div class="card"><div class="card-label">Bot 名称</div><div class="card-value" id="d-bot-name">—</div></div>
+        <div class="card"><div class="card-label">运行时长</div><div class="card-value" id="d-uptime">—</div></div>
+        <div class="card"><div class="card-label">NapCat</div><div class="card-value" id="d-napcat">—</div></div>
+        <div class="card"><div class="card-label">活跃群数</div><div class="card-value" id="d-groups">—</div></div>
+        <div class="card"><div class="card-label">长期记忆条数</div><div class="card-value" id="d-mem">—</div></div>
+        <div class="card"><div class="card-label">已加载技能</div><div class="card-value" id="d-skills">—</div></div>
+      </div>
+
+      <h2 class="section-title">NapCat 连接详情</h2>
+      <pre class="json-box" id="d-napcat-detail">—</pre>
+
+      <h2 class="section-title">活跃引擎状态</h2>
+      <pre class="json-box" id="d-activator">—</pre>
+
+      <h2 class="section-title">调度器任务 (<span id="d-jobs-count">0</span>)</h2>
+      <div class="table-wrap">
+        <table class="table" id="d-jobs">
+          <thead><tr><th>ID</th><th>下次执行</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 群聊 -->
+    <section class="page" id="page-groups">
+      <header class="page-header">
+        <h1>群聊管理</h1>
+        <div class="inline-controls">
+          <span id="groups-summary" class="badge badge-grey">—</span>
+          <button class="btn btn-ghost" onclick="loadGroups()">刷新</button>
+        </div>
+      </header>
+      <div class="hint">
+        <strong>黑名单模式</strong>：默认所有群都启用，手动关闭的群 Bot 会完全静默（不回复、不入记忆）。
+        关闭/启用立即生效，无需重启。
+      </div>
+      <div id="groups-status" class="hint" style="display:none;background:var(--orange-soft);border-color:#ffb380;color:var(--orange);"></div>
+      <div id="groups-list" class="groups-list">加载中…</div>
+    </section>
+
+    <!-- 思维链 -->
+    <section class="page" id="page-trace">
+      <header class="page-header">
+        <h1>思维链实时流</h1>
+        <div class="inline-controls">
+          <label class="switch"><input type="checkbox" id="trace-autoscroll" checked> 自动滚动</label>
+          <button class="btn btn-ghost" onclick="clearTrace()">清空</button>
+        </div>
+      </header>
+      <div class="hint">收到群消息后，这里会按消息分组实时展示：决策 → 工具调用 → 回复 的全过程。</div>
+      <div id="trace-list" class="trace-list"></div>
+    </section>
+
+    <!-- 配置 -->
+    <section class="page" id="page-config">
+      <header class="page-header">
+        <h1>配置</h1>
+        <div class="inline-controls">
+          <button class="btn btn-ghost" onclick="loadConfig()">重新加载</button>
+          <button class="btn btn-primary" onclick="rebuildLLM()">重建 LLM 客户端</button>
+        </div>
+      </header>
+      <div class="hint">
+        <strong>热更新策略</strong>：
+        <span class="badge badge-green">热生效</span> 立即生效；
+        <span class="badge badge-orange">需重建</span> 改完点右上「重建 LLM 客户端」；
+        <span class="badge badge-red">需重启</span> 已保存，重启 Bot 进程生效。
+      </div>
+      <div id="config-forms" class="config-forms">加载中…</div>
+    </section>
+
+    <!-- 记忆 -->
+    <section class="page" id="page-memory">
+      <header class="page-header"><h1>记忆管理</h1></header>
+      <div class="tabs">
+        <button class="tab active" data-mtab="short" onclick="switchMemTab('short')">短期记忆</button>
+        <button class="tab" data-mtab="long" onclick="switchMemTab('long')">长期记忆</button>
+      </div>
+
+      <!-- 短期记忆 -->
+      <div id="mem-short" class="mem-panel">
+        <div class="inline-controls" style="margin-bottom:12px;">
+          <button class="btn btn-ghost" onclick="loadMemGroups()">刷新群列表</button>
+        </div>
+        <div class="cards" id="mem-groups">点击「刷新群列表」</div>
+        <h2 class="section-title">对话历史</h2>
+        <div id="mem-turns" class="hint">选择上面的群查看对话</div>
+      </div>
+
+      <!-- 长期记忆 -->
+      <div id="mem-long" class="mem-panel hidden">
+        <div class="inline-controls" style="margin-bottom:12px;">
+          <input type="text" id="mem-search" placeholder="搜索关键词（语义检索）" class="input" style="flex:1;min-width:200px;">
+          <button class="btn btn-primary" onclick="searchLongTerm()">搜索</button>
+          <button class="btn btn-ghost" onclick="loadLongTermRecent()">显示最近</button>
+          <span id="mem-long-count" class="badge badge-grey">— 条</span>
+        </div>
+        <div id="mem-long-list"></div>
+      </div>
+    </section>
+
+    <!-- 技能 -->
+    <section class="page" id="page-skills">
+      <header class="page-header">
+        <h1>技能</h1>
+        <button class="btn btn-ghost" onclick="loadSkills()">刷新</button>
+      </header>
+      <div class="hint">改触发词或启停后立即生效（无需重启）。触发词留空则使用技能默认值。</div>
+      <div id="skills-list" class="skills-list">加载中…</div>
+    </section>
+
+    <!-- 工具 -->
+    <section class="page" id="page-tools">
+      <header class="page-header">
+        <h1>工具</h1>
+        <button class="btn btn-ghost" onclick="loadTools()">刷新</button>
+      </header>
+      <div class="hint">工具开关立即生效（LLM 下次调用即按新配置）。</div>
+      <div id="tools-list" class="tools-list">加载中…</div>
+    </section>
+
+    <!-- 日志 -->
+    <section class="page" id="page-logs">
+      <header class="page-header">
+        <h1>实时日志</h1>
+        <div class="inline-controls">
+          <select id="log-level-filter" onchange="renderLogs()">
+            <option value="">全部级别</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO" selected>INFO+</option>
+            <option value="WARNING">WARNING+</option>
+            <option value="ERROR">ERROR+</option>
+          </select>
+          <input type="text" id="log-search" placeholder="搜索…" oninput="renderLogs()" class="input">
+          <label class="switch"><input type="checkbox" id="log-autoscroll" checked> 自动滚动</label>
+          <button class="btn btn-ghost" onclick="clearLogs()">清空</button>
+        </div>
+      </header>
+      <div id="log-list" class="log-list"></div>
+    </section>
+  </main>
+</div>
+
+<!-- toast 通知 -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

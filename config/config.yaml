@@ -1,0 +1,69 @@
+bot:
+  name: 小白
+  master_id: ''
+napcat:
+  mode: forward
+  max_concurrent_handlers: 4
+  forward:
+    ws_url: ws://127.0.0.1:3001
+  reverse:
+    host: 0.0.0.0
+    port: 8080
+    access_token: ''
+llm:
+  provider: deepseek
+  api_key: ''
+  base_url: https://api.deepseek.com/v1
+  model: deepseek-chat
+  max_tokens: 4096
+  temperature: 0.8
+  context_window: 1000000
+  context_compression_threshold: 180000
+engagement:
+  random_reply_frequency: 0.08
+  bot_names:
+  - 小白
+  name_match_mode: contains
+  passive_trigger_event: check_passive_trigger
+  disabled_groups: []
+cooldown:
+  global_cooldown: 3
+  group_cooldown: 2
+  user_cooldown: 5
+  rate_limit:
+    window: 60
+    max_count: 20
+    strategy: discard
+memory:
+  short_term:
+    max_turns: 30
+    compression_threshold: 0.85
+  long_term:
+    enabled: true
+    backend: chroma
+    collection_name: qq_bot_memories
+    retrieval_k: 5
+    min_save_length: 10
+    max_entry_bytes: 2400
+    embedding_model: all-MiniLM-L6-v2
+tools:
+  enabled:
+  - web_search
+  - weather
+  - remind
+  - get_time
+logging:
+  level: INFO
+  file: data/bot.log
+  rotation: 10 MB
+webui:
+  enabled: true
+  host: 127.0.0.1
+  port: 8081
+skills:
+  sheng_tu:
+    enabled: true
+    triggers: []
+  group_report:
+    enabled: true
+    triggers: []

@@ -1,0 +1,128 @@
+"""生图技能 — GPT Image 2（文生图 + 图生图 + 队列）"""
+from __future__ import annotations
+import asyncio
+import json
+import os
+import re
+import urllib.request
+from typing import Any
+
+from skills.base import Skill
+
+
+class ShengTuSkill(Skill):
+    name = "sheng_tu"
+    description = "GPT Image 2 生图 / 改图"
+    triggers = ["生图", "画图", "生成图片", "画一张", "改图", "换风格"]
+
+    _generating: bool = False  # 类级锁，防止并发生图
+
+    async def run(self, bot: Any, group_id: int, user_id: int,
+                  message: str, params: dict | None = None) -> str | None:
+        # ── 排队检查 ──
+        if ShengTuSkill._generating:
+            await bot.send_group_msg_by_id(
+                group_id, "⏳ 正在生成上一张图，请稍后再试"
+            )
+            return None
+
+        # 提取参考图和 prompt
+        ref_urls = self._extract_image_urls(message)
+        prompt = self._extract_prompt(message)
+        if not prompt and not ref_urls:
+            return "请告诉我画什么，或发图片+描述"
+
+        api_key = self._get_api_key()
+        if not api_key:
+            return "生图功能未配置 API key"
+
+        mode = "图生图" if ref_urls else "文生图"
+        ShengTuSkill._generating = True
+        try:
+            await bot.send_group_msg_by_id(group_id, f"🎨 {mode}中，请稍候...")
+            success, result = await self._generate(api_key, prompt, ref_urls)
+            if success:
+                # 发送图片（CQ 码图片），不返回文本
+                cq_img = f"[CQ:image,file={result}]"
+                await bot.send_group_msg_by_id(group_id, cq_img)
+            else:
+                await bot.send_group_msg_by_id(group_id, f"❌ {mode}失败：{result}")
+        finally:
+            ShengTuSkill._generating = False
+
+        return None
+
+    # ── 提取与配置 ──
+
+    def _extract_image_urls(self, message: str) -> list[str]:
+        urls = []
+        for match in re.finditer(r'\[CQ:image[^\]]*url=([^\]]+)\]', message):
+            urls.append(match.group(1))
+        return urls
+
+    def _extract_prompt(self, message: str) -> str:
+        clean = re.sub(r'\[CQ:[^\]]+\]', '', message).strip()
+        for trigger in self.triggers:
+            if trigger in clean:
+                clean = clean.replace(trigger, "", 1).strip()
+                break
+        return clean
+
+    def _get_api_key(self) -> str:
+        """从 config/.env 读取 GPT_IMAGE2_API_KEY_HASH，重构为 sk-<hash>。"""
+        env_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "config", ".env"
+        )
+        if not os.path.exists(env_path):
+            return ""
+        with open(env_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("GPT_IMAGE2_API_KEY_HASH="):
+                    val = line.split("=", 1)[1].strip()
+                    if val:
+                        return "sk-" + val
+        return ""
+
+    # ── API 调用 ──
+
+    async def _generate(self, api_key: str, prompt: str,
+                        ref_urls: list[str] | None = None) -> tuple[bool, str]:
+        body = {
+            "model": "gpt-image-2",
+            "prompt": prompt or "保持原图风格，优化细节",
+            "aspectRatio": "1024x1024",
+            "shutProgress": False,
+        }
+        if ref_urls:
+            body["urls"] = ref_urls
+
+        payload = json.dumps(body).encode()
+        req = urllib.request.Request(
+            "https://grsai.dakka.com.cn/v1/draw/completions",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+
+        def _do_request():
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return resp.read().decode("utf-8")
+
+        try:
+            raw = await asyncio.to_thread(_do_request)
+            for line in raw.split("\n"):
+                line = line.strip()
+                if line.startswith("data: "):
+                    obj = json.loads(line[6:])
+                    if obj.get("status") == "succeeded":
+                        img_url = obj["results"][0]["url"]
+                        return True, img_url
+                    elif obj.get("status") == "failed":
+                        return False, obj.get("failure_reason", "未知错误")
+            return False, "API 返回格式异常"
+        except Exception as e:
+            return False, str(e)
