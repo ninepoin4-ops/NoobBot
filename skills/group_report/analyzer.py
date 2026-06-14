@@ -153,19 +153,18 @@ class GroupAnalyzer:
         m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
         if m:
             return m.group(1).strip()
-        # 从第一个 { 到最后一个 }，尝试用 json decoder 验证
+        # 从第一个 { 到 raw_decode 定位的结束位置，精确切片
         start = text.find("{")
         if start == -1:
             return None
         try:
-            # 用 raw_decode 精确定位 JSON 结束位置，返回原始文本子串
             end = json.JSONDecoder().raw_decode(text, start)[1]
             return text[start:end].strip()
         except (json.JSONDecodeError, ValueError):
             pass
-        # 贪婪回退
-        m = re.search(r'\{[\s\S]*\}', text)
-        return m.group(0) if m else None
+        # 不再用贪婪正则 r'\{[\s\S]*\}' 兜底：它会吞掉两个 JSON 之间的闲聊，
+        # 反而引入解析失败。raw_decode 已是最可靠的边界定位，失败就放弃。
+        return None
 
     async def _analyze_topics(self, msg_text: str, max_topics: int = 8) -> list[SummaryTopic]:
         prompt = TOPIC_ANALYSIS_PROMPT.format(messages=msg_text[:12000], max_topics=max_topics)

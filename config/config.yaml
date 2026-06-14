@@ -24,7 +24,6 @@ engagement:
   bot_names:
   - 小白
   name_match_mode: contains
-  passive_trigger_event: check_passive_trigger
   disabled_groups: []
 cooldown:
   global_cooldown: 3

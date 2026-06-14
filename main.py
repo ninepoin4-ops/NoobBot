@@ -24,7 +24,7 @@ def load_config() -> dict:
     load_dotenv(Path(__file__).parent / "config" / ".env")
 
     if os.getenv("LLM_API_KEY"):
-        config["llm"]["api_key"] = os.getenv("LLM_API_KEY") or ""
+        config["llm"]["api_key"] = os.getenv("LLM_API_KEY")
     elif os.getenv("LLM_API_KEY_HASH"):
         # 从 hash 重构 (sk- + hash)
         h = os.getenv("LLM_API_KEY_HASH") or ""

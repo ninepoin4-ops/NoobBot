@@ -15,10 +15,17 @@ from pathlib import Path
 from loguru import logger
 
 
+# 下线 marker。注意：NapCat 在 Windows 下 stdout 可能是 GBK，
+# 而本进程用 encoding="utf-8" 解码 + errors="replace"，中文 marker 可被替换成
+# ?? 而漏检。[KickedOffLine] 是 OneBot 协议层的事件名，纯 ASCII 不受编码影响，
+# 作为最可靠的判据。中文 marker 作为 UTF-8 输出场景下的补充。
+# 若部署中发现检测失效，请从实际 NapCat 输出里补充真实 marker，不要猜。
 KICKED_MARKERS = (
     "[KickedOffLine]",
+    "KickedOffLine",
     "你的帐号当前登录已失效",
     "账号当前登录已失效",
+    "帐号当前登录已失效",
 )
 
 

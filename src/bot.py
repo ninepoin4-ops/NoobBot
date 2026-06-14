@@ -17,10 +17,9 @@ from skills.manager import skill_manager
 
 # 事件钩子（WebUI 推流用）；import 失败时降级为空操作，不影响 Bot 主流程
 try:
-    from webui.hooks import emit as _emit_event, emit_sync as _emit_event_sync
+    from webui.hooks import emit as _emit_event
 except Exception:  # WebUI 未启用或导入失败
     async def _emit_event(_t, **_d): pass
-    def _emit_event_sync(_t, **_d): pass
 
 
 class QQBot:
@@ -131,8 +130,14 @@ class QQBot:
         logger.info(f"[群{msg.group_id}] {self.bot_name}: {reply[:120] if reply else '(空)'}")
 
         if not reply or reply.isspace():
-            logger.info("回复内容为空（可能是 LLM 调用失败），跳过")
-            return
+            # LLM 调用失败返回空串。对高优先级触发（@/quote/名字命中），
+            # 完全沉默会让用户以为 Bot 挂了；这里给一句简短兜底再走正常发送流程。
+            # 低优先级（随机插话等）失败则保持安静，不打扰群里。
+            if decision.priority >= 8:
+                reply = "呜，我刚刚走神了，能再说一遍吗 (´•̥ω•̥`)"
+            else:
+                logger.info("回复内容为空（可能是 LLM 调用失败），低优先级跳过")
+                return
 
         # 更新冷却
         self.activator.update_cooldown(msg)
@@ -244,6 +249,8 @@ class QQBot:
         return total
 
     async def _compress_messages_if_needed(self, messages: list[dict]) -> list[dict]:
+        # 防御性早返回：当前调用方只在超阈值时进入，但保留此判断作为
+        # 安全网，避免日后调用路径变化导致无谓的 LLM 摘要调用
         if self._estimate_context_chars(messages) < self.context_compression_threshold:
             return messages
         if len(messages) <= 2:
@@ -281,8 +288,9 @@ class QQBot:
             self.activator.commit_reply(msg.group_id)
             await _emit_event("msg_sent", group_id=msg.group_id, segment_count=1)
             return
+        segments = self._split_message(text)
         sent_any = False
-        for segment in self._split_message(text):
+        for segment in segments:
             response = await self.napcat.send_group_msg(msg.group_id, segment)
             self._remember_sent_message(msg.group_id, response)
             sent_any = True
@@ -292,7 +300,7 @@ class QQBot:
             await _emit_event(
                 "msg_sent",
                 group_id=msg.group_id,
-                segment_count=len(self._split_message(text)),
+                segment_count=len(segments),
             )
 
     async def _send_group_msg_by_id(self, group_id: int, text: str):

@@ -9,7 +9,9 @@ from enum import Enum
 
 @dataclass
 class Sender:
-    user_id: int
+    # user_id 给默认值 0：某些 OneBot 事件的 sender 字段可能缺 user_id，
+    # 用 Sender(**dict) 解构时会 TypeError，默认值让它能优雅降级
+    user_id: int = 0
     nickname: str = ""
     card: str = ""  # 群名片
     role: str = "member"  # owner / admin / member

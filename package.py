@@ -9,9 +9,9 @@ DST = os.path.join(os.path.dirname(SRC_DIR), "NoobBot.zip")
 EXCLUDE_PATTERNS = [
     "__pycache__", "*.pyc", "*.log",
     "chroma_data", "data", ".env",
-    "napcat/*.db", "napcat/*.db-shm", "napcat/*.db-wal",
-    "napcat/napcat/cache", "napcat/napcat/config",
-    "napcat/napcat/config/napcat_*.json",
+    # napcat 体积大（几百 MB 静态资源），按 README 需单独下载，整目录排除
+    "napcat",
+    "Quick", "Scan",
 ]
 
 

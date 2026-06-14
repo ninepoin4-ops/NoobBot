@@ -100,7 +100,7 @@ graph LR
 | QQ NT | 最新版 | PC 版 QQ（NapCat 注入目标） |
 | NapCat | 任意 Release | OneBot 协议端，需单独下载 |
 
-### 3 步启动
+### 4 步启动
 
 ```bash
 # 1️⃣ 克隆仓库
@@ -111,8 +111,10 @@ cd NoobBot
 pip install -r requirements.txt
 playwright install chromium    # 群日报图片渲染用
 
-# 3️⃣ 启动（双击 start.bat）
-#    按提示扫码登录 QQ → 登录完成按任意键 → Bot + WebUI 自动启动
+# 3️⃣ 放置 NapCat（见下方详细说明）
+
+# 4️⃣ 启动（双击 start.bat）
+#    输入 QQ 号 → 脚本自动配置 NapCat 的 WebSocket → 扫码/快速登录 → 启动 Bot
 ```
 
 启动后浏览器访问：
@@ -125,8 +127,37 @@ playwright install chromium    # 群日报图片渲染用
 <summary>📖 详细配置说明</summary>
 
 #### 放置 NapCat
-- 下载 [NapCat](https://github.com/NapNeko/NapCatQQ) Release
-- 解压到项目根目录的 `napcat/` 文件夹（确保 `napcat/napcat/launcher-user.bat` 存在）
+
+NoobBot 通过 NapCat 接入 QQ，NapCat 需单独下载：
+
+- 下载 [NapCat](https://github.com/NapNeko/NapCatQQ) Release（Shell 版）
+- 解压到项目根目录的 `napcat/` 文件夹，确保路径 `napcat/napcat/launcher-user.bat` 存在
+
+> ⚠️ NapCat 出厂**不会**自动开启任何 WebSocket 服务，Bot 默认连不上。
+> 项目用 `setup_napcat.py` 自动处理这件事，正常用 `start.bat` 启动即可，无需手动改 NapCat 配置。
+
+#### 配置 NapCat 的 WebSocket（自动）
+
+Bot 通过**正向 WebSocket**（默认 `ws://127.0.0.1:3001`）连接 NapCat。运行 `start.bat` 输入 QQ 号时会自动调用 `setup_napcat.py` 生成对应配置。也可以单独手动跑：
+
+```bash
+# 交互式
+python setup_napcat.py
+
+# 一行式（CI / 自动化）
+python setup_napcat.py --qq 123456789
+# 自定义端口/token
+python setup_napcat.py --qq 123456789 --port 3001 --token mytoken
+```
+
+脚本会：
+- 在 `napcat/napcat/config/onebot11_<你的QQ>.json` 写入一个正向 WS Server
+- `messagePostFormat` 设为 `string`（Bot 依赖 `[CQ:at,qq=...]` 字符串判定 @ 提及）
+- 幂等：重跑只更新 WS 配置，保留你已有的其它设置
+- 顺手把 `webui.json` 里残留的开发者 token 替换为随机值
+
+> 📌 **扫码登录用户**：QQ 号要登录后才知道，脚本无法在登录前自动配置。
+> 请登录后补跑一次 `python setup_napcat.py --qq <你的QQ号>`，重启 NapCat 即可。
 
 #### 配置 API Key
 编辑 `config/.env`：

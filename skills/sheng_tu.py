@@ -15,12 +15,16 @@ class ShengTuSkill(Skill):
     description = "GPT Image 2 生图 / 改图"
     triggers = ["生图", "画图", "生成图片", "画一张", "改图", "换风格"]
 
-    _generating: bool = False  # 类级锁，防止并发生图
+    # 实例级异步锁，保证同一时刻只有一个生图任务在跑。
+    # 用 bool 做"锁"没有同步语义，两个协程会同时通过检查进入临界区。
+    def __init__(self):
+        self._lock = asyncio.Lock()
 
     async def run(self, bot: Any, group_id: int, user_id: int,
                   message: str, params: dict | None = None) -> str | None:
         # ── 排队检查 ──
-        if ShengTuSkill._generating:
+        # 非阻塞 acquire：拿不到锁说明正在生图，立即排队反馈
+        if self._lock.locked():
             await bot.send_group_msg_by_id(
                 group_id, "⏳ 正在生成上一张图，请稍后再试"
             )
@@ -37,8 +41,7 @@ class ShengTuSkill(Skill):
             return "生图功能未配置 API key"
 
         mode = "图生图" if ref_urls else "文生图"
-        ShengTuSkill._generating = True
-        try:
+        async with self._lock:
             await bot.send_group_msg_by_id(group_id, f"🎨 {mode}中，请稍候...")
             success, result = await self._generate(api_key, prompt, ref_urls)
             if success:
@@ -47,8 +50,6 @@ class ShengTuSkill(Skill):
                 await bot.send_group_msg_by_id(group_id, cq_img)
             else:
                 await bot.send_group_msg_by_id(group_id, f"❌ {mode}失败：{result}")
-        finally:
-            ShengTuSkill._generating = False
 
         return None
 
@@ -117,10 +118,15 @@ class ShengTuSkill(Skill):
             for line in raw.split("\n"):
                 line = line.strip()
                 if line.startswith("data: "):
-                    obj = json.loads(line[6:])
+                    try:
+                        obj = json.loads(line[6:])
+                    except json.JSONDecodeError:
+                        continue
                     if obj.get("status") == "succeeded":
-                        img_url = obj["results"][0]["url"]
-                        return True, img_url
+                        results = obj.get("results") or []
+                        if not results or not results[0].get("url"):
+                            return False, "API 返回成功但缺少图片地址"
+                        return True, results[0]["url"]
                     elif obj.get("status") == "failed":
                         return False, obj.get("failure_reason", "未知错误")
             return False, "API 返回格式异常"

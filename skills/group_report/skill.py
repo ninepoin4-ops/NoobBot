@@ -26,7 +26,14 @@ class GroupReportSkill(Skill):
         """触发群日报"""
         if not self.analyzer:
             self.analyzer = GroupAnalyzer(bot.llm)
-            bot_self_id = bot.config.get("napcat", {}).get("self_id", 0)
+            # 优先从 napcat 客户端取运行时学到的 self_id；
+            # 兜底从 config 读（旧字段，多数情况为 0）
+            bot_self_id = 0
+            napcat = getattr(bot, "napcat", None)
+            if napcat is not None:
+                bot_self_id = napcat.get_self_id() or 0
+            if not bot_self_id:
+                bot_self_id = int(bot.config.get("napcat", {}).get("self_id", 0) or 0)
             if bot_self_id:
                 self.analyzer.set_bot_self_ids([bot_self_id])
             logger.info(f"群日报技能首次初始化，Bot自身ID: {bot_self_id}")

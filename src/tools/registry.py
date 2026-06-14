@@ -125,12 +125,15 @@ async def get_time(timezone: str = "Asia/Shanghai") -> str:
         now = datetime.now(tz)
         return now.strftime("%Y-%m-%d %H:%M:%S %Z")
     except Exception:
-        from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 async def weather(location: str) -> str:
-    """简单天气查询，复用搜索工具避免额外 API key。"""
+    """搜索某地的天气信息（复用联网搜索，返回的是网页结果摘要）。
+
+    没有独立天气 API，这里直接搜"{location} 天气"取前 3 条网页摘要，
+    用户得到的是搜索结果而非结构化天气数据。
+    """
     return await web_search(f"{location} 天气", max_results=3)
 
 
@@ -179,7 +182,7 @@ tool_registry.register(
 
 tool_registry.register(
     name="weather",
-    description="查询城市天气。需要用户提供城市或地区名称。",
+    description="搜索城市天气信息（返回联网搜索结果摘要，非结构化天气数据）。",
     fn=weather,
     parameters={
         "type": "object",

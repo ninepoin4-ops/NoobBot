@@ -29,6 +29,10 @@ class SkillManager:
         self._custom_triggers.clear()
         self._disabled.clear()
         import skills
+        # 用类对象去重：避免因 dir() 同时看到 import 进来的 Skill 子类
+        # 与模块级 skill_instance，导致同一技能被实例化两次（曾经出现
+        # group_report 在 list_skills 里重复显示两条的问题）。
+        seen_classes: set[type] = set()
         for importer, modname, ispkg in pkgutil.iter_modules(skills.__path__):
             if modname in ("base",):
                 continue
@@ -36,10 +40,19 @@ class SkillManager:
                 module = importlib.import_module(f"skills.{modname}")
                 for attr_name in dir(module):
                     attr = getattr(module, attr_name)
-                    if isinstance(attr, type) and issubclass(attr, Skill) and attr is not Skill:
-                        skill = attr()
-                        self._skills.append(skill)
-                        logger.info(f"技能已加载: [{skill.name}] 触发词={skill.triggers}")
+                    # 只认本模块定义的 Skill 子类（__module__ 必须匹配），
+                    # 排除从其它模块 import 进来的同名类、基类、模块级实例
+                    if not (isinstance(attr, type)
+                            and issubclass(attr, Skill)
+                            and attr is not Skill
+                            and attr.__module__ == module.__name__):
+                        continue
+                    if attr in seen_classes:
+                        continue
+                    seen_classes.add(attr)
+                    skill = attr()
+                    self._skills.append(skill)
+                    logger.info(f"技能已加载: [{skill.name}] 触发词={skill.triggers}")
             except Exception as e:
                 logger.warning(f"技能加载失败 [{modname}]: {e}")
 

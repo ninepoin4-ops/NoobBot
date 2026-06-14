@@ -96,17 +96,22 @@ def _apply_tools_enabled(bot, v):
     bot.config.setdefault("tools", {})["enabled"] = v  # bot.py 每次都实时读，天然热生效
 
 def _apply_retrieval_k(bot, v):
-    bot.memory.vector._retrieval_k = int(v)
+    # VectorMemory 在 long_term.enabled=False 时会提前 return，
+    # 此时实例上没有 _retrieval_k 属性，直接赋值会 AttributeError
+    vector = bot.memory.vector
+    if getattr(vector, "_enabled", False):
+        vector._retrieval_k = int(v)
     _set_nested(bot.config, "memory.long_term.retrieval_k", int(v))
 
 def _apply_min_save_length(bot, v):
-    bot.memory.vector._min_save_len = int(v)
+    vector = bot.memory.vector
+    if getattr(vector, "_enabled", False):
+        vector._min_save_len = int(v)
     _set_nested(bot.config, "memory.long_term.min_save_length", int(v))
 
 def _apply_log_level(bot, v):
-    import logging as pylogging
-    from loguru import logger as _lg
-    # loguru 没有 set_level，但可以靠 WebUI 的过滤实现，这里仅记录到 config
+    # loguru 没有 set_level API，且重新 add handler 会产生重复日志，
+    # 这里仅把级别写入 config；实际过滤靠 WebUI 前端的级别下拉框。
     _set_nested(bot.config, "logging.level", v)
 
 
@@ -163,27 +168,37 @@ def apply_config_change(bot, key: str, value) -> dict:
     """应用一个配置变更。
 
     返回 {ok, status, message}。即使返回 RESTART_REQUIRED 也已经写入 bot.config + 持久化。
+
+    顺序：先校验+应用到内存（hot 字段），成功后再持久化。apply 失败时回滚内存值，
+    避免把非法值（如 cooldown='abc'）写进 config.yaml 导致下次启动 Activator 崩溃。
     """
-    # 1. 先写入 bot.config（让所有热/非热字段都有最新值）
+    # 1. 备份旧值，apply 失败时回滚
+    old_value = _get_nested(bot.config, key, _MISSING)
+
+    # 2. 写入 bot.config（让所有热/非热字段都有最新值）
     _set_nested(bot.config, key, value)
 
-    # 2. 持久化到 yaml
-    try:
-        persist_config(bot.config)
-    except Exception as e:
-        logger.warning(f"配置持久化失败: {e}")
-        return {"ok": False, "status": "error",
-                "message": f"已写入内存但持久化失败: {e}"}
-
-    # 3. 按 key 类型应用
+    # 3. 按 key 类型应用到内存模块
     status = classify(key)
     if status == APPLIED:
         applier = HOT_APPLIERS[key]
         try:
             applier(bot, value)
         except Exception as e:
+            _rollback(bot.config, key, old_value)
             return {"ok": False, "status": "error",
-                    "message": f"热更新应用失败: {e}"}
+                    "message": f"热更新应用失败: {e}（已回滚）"}
+
+    # 4. 应用成功后才持久化（避免非法值污染 yaml）
+    try:
+        persist_config(bot.config)
+    except Exception as e:
+        # persist 失败不回滚内存（热字段已经生效了），只告知用户
+        logger.warning(f"配置持久化失败: {e}")
+        return {"ok": True, "status": status,
+                "message": f"已生效但持久化失败: {e}"}
+
+    if status == APPLIED:
         return {"ok": True, "status": APPLIED, "message": "已即时生效"}
 
     if status == REBUILD_REQUIRED:
@@ -192,6 +207,26 @@ def apply_config_change(bot, key: str, value) -> dict:
 
     return {"ok": True, "status": RESTART_REQUIRED,
             "message": "配置已保存，需重启 Bot 进程生效"}
+
+
+# apply 失败回滚用的哨兵值（区分"字段不存在"和"字段值为 None"）
+_MISSING = object()
+
+
+def _rollback(config: dict, key: str, old_value):
+    """apply 失败时把 bot.config 里对应 key 恢复到旧值。"""
+    if old_value is _MISSING:
+        # 原本不存在，删掉新写入的叶子 key（如果可删）
+        keys = key.split(".")
+        cur = config
+        for k in keys[:-1]:
+            if not isinstance(cur, dict) or k not in cur:
+                return
+            cur = cur[k]
+        if isinstance(cur, dict):
+            cur.pop(keys[-1], None)
+    else:
+        _set_nested(config, key, old_value)
 
 
 def rebuild_llm_client(bot) -> dict:

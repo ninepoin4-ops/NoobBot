@@ -219,10 +219,10 @@ class Activator:
         consume=True 时同时扣额度（旧行为）；consume=False 时仅判断。
         """
         bucket = self._rate_buckets.setdefault(group_id, [])
-        # 清除窗口外的记录（就地修改，避免局部变量失效）
+        # 真正就地修改：切片赋值保留同一 list 对象，避免局部变量失效，
+        # 也避免每条消息都新建 list 造成的开销
         cutoff = now - self.rate_window
-        self._rate_buckets[group_id] = [t for t in bucket if t > cutoff]
-        bucket = self._rate_buckets[group_id]
+        bucket[:] = [t for t in bucket if t > cutoff]
 
         if len(bucket) >= self.rate_max:
             return False

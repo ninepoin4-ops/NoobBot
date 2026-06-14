@@ -2,8 +2,8 @@
 深度记忆系统 — 4层架构，设计源自 ChatLuna 的 memory pipeline
 
 层级：
-  1. BufferMemory  — 当前会话的短期上下文（内存 + SQLite 持久化）
-  2. VectorMemory  — 跨会话的长期记忆（chroma 向量检索）
+  1. BufferMemory  — 当前会话的短期上下文（纯内存）
+  2. VectorMemory  — 跨会话的长期记忆（chroma 向量检索，持久化到磁盘）
   3. LoreBook      — 关键词触发的世界书/设定注入
   4. Compressor    — 超长上下文 LLM 压缩
 """
@@ -29,6 +29,20 @@ def limit_utf8_bytes(text: str, max_bytes: int) -> str:
 
 def normalize_memory_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
+
+
+# CQ 码清洗：把 raw_message 里的协议标记转成 LLM 易理解的纯文本，
+# 避免一堆 [CQ:at,qq=12345] 进了短期记忆后又被原样拼回 messages，
+# 干扰 LLM 理解。@someone 转成 @12345，其余 CQ 码转成中文占位。
+def strip_cq_for_memory(text: str) -> str:
+    if "[CQ:" not in text:
+        return text
+    text = re.sub(r"\[CQ:at,qq=(\d+)[^\]]*\]", r"@\1", text)
+    text = re.sub(r"\[CQ:reply,[^\]]*\]", "", text)
+    text = re.sub(r"\[CQ:image,[^\]]*\]", "[图片]", text)
+    text = re.sub(r"\[CQ:face,[^\]]*\]", "[表情]", text)
+    text = re.sub(r"\[CQ:[^\]]*\]", "", text)
+    return text.strip()
 
 
 # ════════════════════════════════════════════
@@ -276,9 +290,9 @@ class MemoryManager:
     """统一记忆管理器，协调4层记忆"""
 
     def __init__(self, config: dict, llm_client=None):
-        long_term = config["memory"]["long_term"]
         self._llm = llm_client
-        self._max_entry_bytes = long_term.get("max_entry_bytes", 2400)
+        # max_entry_bytes 由 VectorMemory 单一持有，避免 manager 与 vector 各存一份
+        # 导致热更新时只改一份的不一致问题
         self.buffer = BufferMemory(config)
         self.vector = VectorMemory(config)
         self.lorebook = LoreBook()
@@ -286,9 +300,15 @@ class MemoryManager:
 
     async def on_message(self, group_id: int, user_id: int,
                          message: str, is_bot: bool = False):
-        """消息经过时自动存入短期记忆"""
+        """消息经过时自动存入短期记忆。
+
+        入记忆前清洗 CQ 码：@提及转成 @QQ 号、图片/表情转成占位符，
+        避免协议层标记被原样拼回 LLM messages 干扰理解。
+        （决策链 activator 仍用原始 raw_message 判定 @ / quote，互不影响）
+        """
         role = "assistant" if is_bot else "user"
-        self.buffer.add_turn(group_id, user_id, role, message)
+        clean = strip_cq_for_memory(message)
+        self.buffer.add_turn(group_id, user_id, role, clean)
 
     async def on_interaction(self, group_id: int, user_id: int,
                              user_msg: str, bot_reply: str):
@@ -310,10 +330,11 @@ class MemoryManager:
         bot_reply = normalize_memory_text(bot_reply)
         raw = f"用户: {user_msg}\n回答: {bot_reply}"
 
+        max_entry_bytes = getattr(self.vector, "_max_entry_bytes", 2400)
         # 小记录直接保存；较长记录先让 LLM 提炼事实，再做字节上限兜底。
         if (
             self._llm
-            and len(raw.encode("utf-8")) > max(400, self._max_entry_bytes // 2)
+            and len(raw.encode("utf-8")) > max(400, max_entry_bytes // 2)
         ):
             prompt = (
                 "把下面群聊互动压缩成一条长期记忆，只保留对后续对话有用的事实、偏好、约定和待办。"
@@ -322,7 +343,7 @@ class MemoryManager:
             )
             raw = await self._llm.summarize(prompt, max_tokens=300)
 
-        return limit_utf8_bytes(normalize_memory_text(raw), self._max_entry_bytes)
+        return limit_utf8_bytes(normalize_memory_text(raw), max_entry_bytes)
 
     async def build_prompt_context(self, group_id: int, user_id: int,
                                    user_message: str,
