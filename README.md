@@ -1,5 +1,5 @@
-# Noob Bot 🤖
-解压即用的QQbot-下载-解压-启动install.bat-启动start.bat-开始使用
+## Noob Bot 🤖
+# 解压即用的QQbot-下载-解压-启动install.bat-启动start.bat-开始使用
 > 一个带 WebUI 控制面板的 QQ 群聊 AI Bot，开箱即用、零外部依赖前端、支持思维链实时观测。
 >
 > A QQ group-chat AI bot with a built-in WebUI dashboard, real-time chain-of-thought observation, hot-reloadable config, and a layered memory system.
