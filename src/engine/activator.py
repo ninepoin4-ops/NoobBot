@@ -173,9 +173,25 @@ class Activator:
         )
 
     def commit_reply(self, group_id: int, now: float | None = None):
-        """实际成功发送一条回复后调用，正式扣减限流额度。"""
+        """实际成功发送一条回复后调用，正式扣减限流额度。
+
+        会先清理窗口外的过期时间戳，再校验是否已达上限——避免 scheduler
+        主动消息等额外调用方把 bucket 追加到无限大，让限流形同虚设。
+        """
         now = now if now is not None else time.time()
         bucket = self._rate_buckets.setdefault(group_id, [])
+        # 清理窗口外过期项（与 _check_rate_limit 同一套清理逻辑）
+        cutoff = now - self.rate_window
+        bucket[:] = [t for t in bucket if t > cutoff]
+        # 已达上限则不追加（相当于这条发送不计数，避免超额堆积）；
+        # decide() 在返回前已用 consume=False 做过判断，正常不会到这里，
+        # 这只是对 scheduler 主动消息等"绕过 decide"路径的防御。
+        if len(bucket) >= self.rate_max:
+            logger.debug(
+                f"群 {group_id} commit_reply 时已达限流上限 {self.rate_max}，"
+                "本次发送不计入额度"
+            )
+            return
         bucket.append(now)
 
     def remember_bot_message(self, group_id: int, message_id: int | str | None):

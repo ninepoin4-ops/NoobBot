@@ -22,6 +22,27 @@ except Exception:  # WebUI 未启用或导入失败
     async def _emit_event(_t, **_d): pass
 
 
+# 这些 CQ 码承载二进制/单段不可拆内容，混在文本里时整条发送，
+# 否则 _split_message 的句末标点切分会把图片/base64 撕碎。
+# 纯文本类（at/face/reply 等）可正常分段。
+_UNCUTTABLE_CQ_PREFIXES = (
+    "[CQ:image",       # 图片（含 url 或 base64）
+    "[CQ:record",      # 语音
+    "[CQ:video",       # 视频
+    "[CQ:file",        # 文件
+    "[CQ:music",       # 音乐分享
+    "[CQ:forward",     # 合并转发
+    "[CQ:json",        # json 卡片
+    "[CQ:xml",         # xml 卡片
+    "[CQ:poke",        # 戳一戳
+)
+
+
+def _has_uncuttable_cq(text: str) -> bool:
+    """是否含不能被 _split_message 切坏的 CQ 码（图片/文件/语音等）。"""
+    return any(prefix in text for prefix in _UNCUTTABLE_CQ_PREFIXES)
+
+
 class QQBot:
     """群聊 Bot 主类"""
 
@@ -287,8 +308,9 @@ class QQBot:
 
     async def _send_reply(self, msg: GroupMessage, text: str):
         """回复群消息"""
-        # 含 CQ 码（图片/base64 等）的整条发送，避免被切碎
-        if "[CQ:" in text:
+        # 含"不可切"的 CQ 码（图片/base64/文件/语音等二进制载体）时整条发送，
+        # 避免被 _split_message 切坏。普通文本（哪怕含 [CQ:at]）仍可分段。
+        if _has_uncuttable_cq(text):
             response = await self.napcat.send_group_msg(msg.group_id, text)
             self._remember_sent_message(msg.group_id, response)
             self.activator.commit_reply(msg.group_id)
@@ -315,8 +337,9 @@ class QQBot:
         if not self.activator.is_group_enabled(group_id):
             logger.debug(f"群 {group_id} 已禁用，跳过主动发送")
             return
-        # 含 CQ 码的整条发送，不分段（图片/base64 等）
-        if "[CQ:" in text:
+        # 含"不可切"的 CQ 码（图片/base64/文件/语音等二进制载体）时整条发送，
+        # 避免被 _split_message 切坏。普通文本（哪怕含 [CQ:at]）仍可分段。
+        if _has_uncuttable_cq(text):
             response = await self.napcat.send_group_msg(group_id, text)
             self._remember_sent_message(group_id, response)
             self.activator.commit_reply(group_id)

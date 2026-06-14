@@ -12,6 +12,11 @@ except Exception:
     async def _emit_event(_t, **_d): pass
 
 
+# summarize 失败时的兜底摘要：用固定短占位而非原文切片，
+# 否则把未压缩的原文当"摘要"塞回上下文反而会撑爆窗口。
+_SUMMARY_FALLBACK = "（摘要生成失败，已跳过此段历史）"
+
+
 class LLMClient:
     """大模型 API 客户端"""
 
@@ -176,10 +181,13 @@ class LLMClient:
                 max_tokens=max_tokens,
                 temperature=0.3,
             )
-            return resp.choices[0].message.content or text[:200]
+            content = resp.choices[0].message.content
+            return content if content and content.strip() else _SUMMARY_FALLBACK
         except Exception as e:
             logger.warning(f"摘要失败: {e}")
-            return text[:200]
+            # 失败时返回固定短占位而非原文切片——原文可能极长，
+            # 当作"摘要"用会反过来撑爆上下文。
+            return _SUMMARY_FALLBACK
 
     async def generate_system_prompt(self, group_id: int,
                                      bot_name: str,
@@ -192,17 +200,24 @@ class LLMClient:
         会被拼到字符串里（保持返回值是 str 的契约）。
         """
         if self._personality_manager is not None:
-            messages = self._personality_manager.render_system_prompt(
-                bot_name=bot_name, master_id=master_id,
-                group_id=group_id, memory_context=memory_context,
-            )
-            # 拼 system 段；非 system 段（user/assistant）单独成块
-            parts = []
-            for m in messages:
-                parts.append(m["content"])
-            return "\n".join(p for p in parts if p)
+            try:
+                messages = self._personality_manager.render_system_prompt(
+                    bot_name=bot_name, master_id=master_id,
+                    group_id=group_id, memory_context=memory_context,
+                )
+                # 拼 system 段；非 system 段（user/assistant）单独成块
+                parts = [m["content"] for m in messages]
+                return "\n".join(p for p in parts if p)
+            except Exception as e:
+                # PM 异常不应阻塞消息处理；回退硬编码并记日志
+                logger.warning(f"人格预设渲染失败，回退硬编码: {e}")
+        # 硬编码兜底（无 manager 或 PM 渲染异常时）
+        return self._builtin_prompt(bot_name, group_id, master_id, memory_context)
 
-        # 硬编码兜底（无 manager 时）
+    @staticmethod
+    def _builtin_prompt(bot_name: str, group_id: int,
+                        master_id: str, memory_context: str) -> str:
+        """硬编码兜底人格（与 config/personalities/default.yaml 内容一致）。"""
         parts = [
             f"你是{bot_name}，一个可爱的 QQ 群聊 AI 助手。",
             f"你当前在群ID: {group_id}，此群的对话和记忆独立于其他群。",

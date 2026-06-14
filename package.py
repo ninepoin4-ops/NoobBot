@@ -12,6 +12,10 @@ EXCLUDE_PATTERNS = [
     # napcat 体积大（几百 MB 静态资源），按 README 需单独下载，整目录排除
     "napcat",
     "Quick", "Scan",
+    # config.yaml 会被 hot_reload 写入真实 api_key/token，禁止打包泄露。
+    # 用户拿到 zip 后由 install.bat 生成模板，或手动从模板复制。
+    "config/config.yaml",
+    "config/personalities",
 ]
 
 

@@ -189,11 +189,18 @@ class GroupAnalyzer:
             return []
         results = []
         for q in data["quotes"]:
+            # prompt 现在要求返回 user_id（数字 ID）；旧版字段 sender 兼容
+            raw_uid = q.get("user_id") or q.get("sender") or ""
+            # 归一化为字符串，便于后续与 id_to_name 的 key（数字字符串）匹配
+            try:
+                uid_str = str(int(raw_uid)) if str(raw_uid).strip() else str(raw_uid)
+            except (TypeError, ValueError):
+                uid_str = str(raw_uid)
             results.append(GoldenQuote(
                 content=q.get("content", ""),
-                sender=q.get("sender", ""),
+                sender=str(raw_uid),  # 暂存，回填时替换成昵称；匹配失败保留原值
                 reason=q.get("reason", ""),
-                user_id=q.get("sender", ""),
+                user_id=uid_str,
             ))
         return results
 

@@ -33,7 +33,7 @@ import yaml
 from loguru import logger
 
 
-# ── 项目根目录（src/personalities/manager.py → 向上两级是项目根）──
+# ── 项目根目录（src/personalities/manager.py → 向上三级是项目根）──
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _PRESET_DIR = _PROJECT_ROOT / "config" / "personalities"
 
@@ -42,6 +42,13 @@ _VALID_ROLES = {"system", "user", "assistant"}
 
 # 渲染时识别的占位符
 _PLACEHOLDERS = ("bot_name", "master_id")
+
+# 保留 key（与 WebUI 路由冲突，禁止用作预设文件名）
+# 这些名字对应 /api/personalities/<key> 的固定路由，若用作 key 会导致
+# POST /api/personalities/activate 永远命中激活接口而非保存接口。
+_RESERVED_KEYS = frozenset({
+    "activate", "reload", "open-folder", "active",
+})
 
 
 @dataclass
@@ -178,6 +185,11 @@ class PersonalityManager:
             return None
 
         key = path.stem  # 文件名去扩展名
+        if key in _RESERVED_KEYS:
+            logger.warning(
+                f"人格预设文件名 '{key}' 是保留字（与 WebUI 路由冲突），"
+                "将无法在 WebUI 编辑/保存该预设。建议重命名文件。"
+            )
         name = str(data.get("name") or key)
         keywords_raw = data.get("keywords") or []
         keywords = [str(k) for k in keywords_raw] if isinstance(keywords_raw, list) else []
@@ -324,6 +336,13 @@ class PersonalityManager:
 
         若文件不存在则新建。返回更新后的 Personality。
         """
+        key = str(key or "").strip()
+        if not key:
+            raise ValueError("预设 key 不能为空")
+        if key in _RESERVED_KEYS:
+            raise ValueError(
+                f"'{key}' 是保留字（与 WebUI 路由冲突），请换一个文件名"
+            )
         path = self._dir / f"{key}.yaml"
         path.parent.mkdir(parents=True, exist_ok=True)
 

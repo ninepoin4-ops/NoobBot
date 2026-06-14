@@ -163,6 +163,19 @@ async def personalities_delete_handler(request: web.Request) -> web.Response:
 
 # ── 打开文件夹（Windows）──
 
+def _is_local_request(request: web.Request) -> bool:
+    """判断请求是否来自本机（127.0.0.1 / ::1）。
+
+    open-folder 会调 explorer.exe，等于在 Bot 所在机器上执行系统命令，
+    远程触发等同于远程命令执行。必须限制只能本机调用。
+    """
+    peername = request.transport.get_extra_info("peername") if request.transport else None
+    if not peername:
+        return False
+    ip = peername[0] if isinstance(peername, tuple) and peername else ""
+    return ip in ("127.0.0.1", "::1", "localhost")
+
+
 def _open_folder_in_explorer(dir_path: Path) -> tuple[bool, str]:
     """用资源管理器打开目录。返回 (成功, 消息)。"""
     try:
@@ -177,7 +190,15 @@ def _open_folder_in_explorer(dir_path: Path) -> tuple[bool, str]:
 
 
 async def personalities_open_folder_handler(request: web.Request) -> web.Response:
-    """POST /api/personalities/open-folder — 打开 config/personalities/ 目录。"""
+    """POST /api/personalities/open-folder — 打开 config/personalities/ 目录。
+
+    仅允许本机调用（防止远程触发系统命令执行）。
+    """
+    if not _is_local_request(request):
+        return web.json_response(
+            {"ok": False, "error": "出于安全考虑，打开文件夹仅限本机访问"},
+            status=403,
+        )
     target = _PROJECT_ROOT / "config" / "personalities"
     ok, msg = _open_folder_in_explorer(target)
     if ok:
@@ -186,7 +207,15 @@ async def personalities_open_folder_handler(request: web.Request) -> web.Respons
 
 
 async def skills_open_folder_handler(request: web.Request) -> web.Response:
-    """POST /api/skills/open-folder — 打开 skills/ 目录。"""
+    """POST /api/skills/open-folder — 打开 skills/ 目录。
+
+    仅允许本机调用（防止远程触发系统命令执行）。
+    """
+    if not _is_local_request(request):
+        return web.json_response(
+            {"ok": False, "error": "出于安全考虑，打开文件夹仅限本机访问"},
+            status=403,
+        )
     target = _PROJECT_ROOT / "skills"
     ok, msg = _open_folder_in_explorer(target)
     if ok:

@@ -9,12 +9,28 @@ from enum import Enum
 
 @dataclass
 class Sender:
-    # user_id 给默认值 0：某些 OneBot 事件的 sender 字段可能缺 user_id，
-    # 用 Sender(**dict) 解构时会 TypeError，默认值让它能优雅降级
+    # 只保留 Bot 实际用到的字段。OneBot v11 上报的 sender 还含
+    # sex/age/area/level/title 等，用 Sender(**dict) 解构会 TypeError，
+    # 所以一律走 from_dict() 显式取字段，忽略未声明字段。
     user_id: int = 0
     nickname: str = ""
     card: str = ""  # 群名片
     role: str = "member"  # owner / admin / member
+
+    @classmethod
+    def from_dict(cls, d: dict | None) -> "Sender | None":
+        """从 OneBot sender dict 安全构造，忽略未声明字段。"""
+        if not d:
+            return None
+        try:
+            return cls(
+                user_id=int(d.get("user_id", 0) or 0),
+                nickname=str(d.get("nickname", "") or ""),
+                card=str(d.get("card", "") or ""),
+                role=str(d.get("role", "member") or "member"),
+            )
+        except (TypeError, ValueError):
+            return None
 
 @dataclass
 class GroupMessage:

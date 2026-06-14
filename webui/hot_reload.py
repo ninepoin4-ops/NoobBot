@@ -121,12 +121,6 @@ def _apply_min_save_length(bot, v):
         vector._min_save_len = int(v)
     _set_nested(bot.config, "memory.long_term.min_save_length", int(v))
 
-def _apply_log_level(bot, v):
-    # loguru 没有 set_level API，且重新 add handler 会产生重复日志，
-    # 这里仅把级别写入 config；实际过滤靠 WebUI 前端的级别下拉框。
-    _set_nested(bot.config, "logging.level", v)
-
-
 # 热更新字段表
 HOT_APPLIERS = {
     "bot.name": _apply_bot_name,
@@ -143,7 +137,9 @@ HOT_APPLIERS = {
     "tools.enabled": _apply_tools_enabled,
     "memory.long_term.retrieval_k": _apply_retrieval_k,
     "memory.long_term.min_save_length": _apply_min_save_length,
-    "logging.level": _apply_log_level,
+    # logging.level 不在热更新表里：loguru 改 level 需要 handler 重 add，
+    # 没法干净热生效。它会被 classify() 归类到 RESTART_REQUIRED（红标），
+    # 与真实行为一致，避免 UI 显示"已即时生效"但实际没生效的欺骗性反馈。
 }
 
 # 需要重建 LLM 客户端的字段
@@ -252,6 +248,11 @@ def rebuild_llm_client(bot) -> dict:
             bot.memory._llm = bot.llm
             if bot.memory.compressor:
                 bot.memory.compressor._llm = bot.llm
+        # 重新注入人格预设管理器（新建的 LLMClient 实例上 _personality_manager=None，
+        # 不重新注入会导致人格静默回退硬编码）
+        pm = getattr(bot, "personalities", None)
+        if pm is not None:
+            bot.llm.set_personality_manager(pm)
         # 更新快捷属性
         llm_config = bot.config.get("llm", {})
         bot.context_window = llm_config.get("context_window", 1_000_000)
@@ -266,14 +267,22 @@ def rebuild_llm_client(bot) -> dict:
 # ──────────────────── 持久化 ────────────────────
 
 def persist_config(config: dict, path: str = None) -> str:
-    """把 config 写回 config.yaml（注意：会丢失原注释）。"""
+    """把 config 写回 config.yaml（注意：会丢失原注释）。
+
+    采用「写临时文件 + 原子 rename」：写到一半进程崩溃也不会留下截断的
+    config.yaml，避免下次启动因 yaml 损坏而整个 Bot 起不来。
+    """
     import yaml
+    import os
     if path is None:
         path = Path(__file__).resolve().parent.parent / "config" / "config.yaml"
     path = Path(path)
-    # 写入前确保敏感字段不被错误清空
-    with open(path, "w", encoding="utf-8") as f:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
         yaml.safe_dump(config, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
+    # os.replace 是原子的（同文件系统内）；Windows 上也能覆盖已存在目标
+    os.replace(tmp, path)
     return str(path)
 
 

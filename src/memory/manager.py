@@ -58,7 +58,10 @@ class BufferMemory:
     def __init__(self, config: dict):
         mc = config["memory"]["short_term"]
         self.max_turns = mc["max_turns"]
-        self.threshold = mc["compression_threshold"]
+        # compression_threshold 预留给"基于 buffer 占用率触发自动压缩"的特性，
+        # 当前压缩由 bot.py 的字符数阈值（context_compression_threshold）驱动，
+        # 这里的 threshold 暂未被消费，但保留读取让 config 字段不悬空。
+        self.threshold = mc.get("compression_threshold", 0.85)
 
         # key: f"{group_id}:{user_id}" -> list[ConversationTurn]
         self._sessions: dict[str, list[ConversationTurn]] = defaultdict(list)

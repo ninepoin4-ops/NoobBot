@@ -261,7 +261,9 @@ def main():
     print(f"   napcat.mode: forward")
     print(f"   napcat.forward.ws_url: ws://{args.host}:{port}")
     if args.token:
-        print(f"   napcat.reverse.access_token: {args.token}  (用于鉴权)")
+        print(f"   napcat.forward.access_token: {args.token}  (forward 模式鉴权)")
+        print("   注意：forward 模式默认走 127.0.0.1 本机回环，通常不需要设 token；")
+        print("         只有把 NapCat WS 暴露到网络时才需要。")
     print("   （默认值已对齐，除非你改过端口/token，否则无需动 config.yaml）")
 
     # 6. 顺手清理 webui.json 残留 token
