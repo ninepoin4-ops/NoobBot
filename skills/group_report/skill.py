@@ -101,11 +101,19 @@ class GroupReportSkill(Skill):
         logger.info(f"[群{group_id}] 图片已保存: {img_path}")
 
         # 5. 发送图片（base64 内嵌，兼容 NapCat）
+        # 图片用完即删：base64 已内嵌进 CQ 码，文件本身不再需要，
+        # 避免长期运行在 data/ 下堆积大量日报图片
         import base64
-        with open(img_path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        cq_img = f"[CQ:image,file=base64://{b64}]"
-        await bot.send_group_msg_by_id(group_id, cq_img)
+        try:
+            with open(img_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+            cq_img = f"[CQ:image,file=base64://{b64}]"
+            await bot.send_group_msg_by_id(group_id, cq_img)
+        finally:
+            try:
+                os.remove(img_path)
+            except OSError:
+                pass
 
     def _format_text(self, r: "GroupReport") -> str:
         lines = []

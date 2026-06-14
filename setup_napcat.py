@@ -54,11 +54,16 @@ DEFAULT_ONEBOT11_TEMPLATE = {
 
 
 def is_port_free(host: str, port: int) -> bool:
-    """检查端口是否空闲（未被监听）。被占用返回 False。"""
+    """检查端口是否空闲（未被监听）。被占用返回 False。
+
+    始终用 127.0.0.1 做实际 bind 测试——即使 host=0.0.0.0，
+    如果 0.0.0.0:port 已被占用，127.0.0.1:port 也会 bind 失败；
+    而 127.0.0.1 bind 成功则说明本机该端口空闲。
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.5)
         try:
-            s.bind((host, port))
+            s.bind(("127.0.0.1", port))
             return True
         except OSError:
             return False
@@ -101,14 +106,26 @@ def merge_ws_server(config: dict, port: int, token: str) -> tuple[dict, str]:
     """把正向 WS 项合并进 config['network']['websocketServers']。
 
     返回 (新 config, 动作描述)。已存在同端口则覆盖，否则追加。
+
+    健壮性：NapCat 配置常被用户手改，network 可能不是 dict、
+    websocketServers 可能不是 list。这里强制规整，避免崩溃。
     """
-    network = config.setdefault("network", {})
-    # 兜底：旧配置可能没有 network 子结构
+    # network 必须是 dict；若被手改成其它类型则重置为空 dict
+    if not isinstance(config.get("network"), dict):
+        config["network"] = {}
+    network = config["network"]
+
+    # 兜底：旧配置可能缺某些子字段，或被手改成非 list
     for key in ("httpServers", "httpSseServers", "httpClients",
                 "websocketClients", "plugins"):
-        network.setdefault(key, [])
+        if not isinstance(network.get(key), list):
+            network[key] = []
 
     servers = network.setdefault("websocketServers", [])
+    if not isinstance(servers, list):
+        servers = []
+        network["websocketServers"] = servers
+
     new_entry = make_ws_server_entry(port, token)
 
     replaced = False
