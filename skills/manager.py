@@ -24,14 +24,19 @@ class SkillManager:
         """自动发现并加载 skills/ 目录下所有技能。
 
         config: 可选，传入 config dict 用于读取 skills.<name>.triggers/enabled 覆盖。
+
+        支持两种技能形态：
+        - 单文件技能（skills/foo.py 直接定义类）：__module__ == module.__name__
+        - 包技能（skills/foo/__init__.py re-export 子模块里的类）：
+          类的 __module__ 是 skills.foo.skill，而扫描到的 module.__name__ 是
+          skills.foo。所以匹配规则是「类定义在当前模块或其子模块里」。
         """
         self._skills.clear()
         self._custom_triggers.clear()
         self._disabled.clear()
         import skills
-        # 用类对象去重：避免因 dir() 同时看到 import 进来的 Skill 子类
-        # 与模块级 skill_instance，导致同一技能被实例化两次（曾经出现
-        # group_report 在 list_skills 里重复显示两条的问题）。
+        # 用类对象去重：避免包 __init__ 同时 re-export 类 + 子模块也被扫描，
+        # 导致同一技能被实例化两次（曾经出现 group_report 重复显示两条）。
         seen_classes: set[type] = set()
         for importer, modname, ispkg in pkgutil.iter_modules(skills.__path__):
             if modname in ("base",):
@@ -40,12 +45,17 @@ class SkillManager:
                 module = importlib.import_module(f"skills.{modname}")
                 for attr_name in dir(module):
                     attr = getattr(module, attr_name)
-                    # 只认本模块定义的 Skill 子类（__module__ 必须匹配），
-                    # 排除从其它模块 import 进来的同名类、基类、模块级实例
                     if not (isinstance(attr, type)
                             and issubclass(attr, Skill)
-                            and attr is not Skill
-                            and attr.__module__ == module.__name__):
+                            and attr is not Skill):
+                        continue
+                    # 只认「定义在当前模块或其子模块里」的 Skill 子类，
+                    # 排除从无关模块 import 进来的同名类。
+                    # 单文件：__module__ == module.__name__
+                    # 包：     __module__.startswith(module.__name__ + ".")
+                    cls_mod = attr.__module__
+                    if not (cls_mod == module.__name__
+                            or cls_mod.startswith(module.__name__ + ".")):
                         continue
                     if attr in seen_classes:
                         continue

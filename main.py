@@ -37,6 +37,36 @@ def load_config() -> dict:
     return config
 
 
+# install.bat 生成的 .env 模板占位符；用户没改时 api_key 会拼成 sk- 占位符
+_PLACEHOLDER_API_KEYS = {
+    "", "sk-", "sk-YOUR_DEEPSEEK_KEY_HERE", "YOUR_DEEPSEEK_KEY_HERE",
+}
+
+
+def _warn_if_api_key_missing(config: dict) -> None:
+    """启动时检查 LLM api_key 是否为空或仍是占位符。
+
+    空 key 下 LLMClient 仍会构造成功（OpenAI 客户端不预校验），
+    但第一次调用必然 401，Bot 对所有消息表现为静默/兜底，
+    用户会以为 Bot 坏了。这里给醒目告警，指明修复方向。
+    """
+    api_key = (config.get("llm", {}) or {}).get("api_key", "") or ""
+    if api_key.strip() in _PLACEHOLDER_API_KEYS:
+        logger.error("=" * 60)
+        logger.error("⚠️  LLM API key 未配置！Bot 将无法生成回复。")
+        logger.error("   请编辑 config/.env 填入真实的 DeepSeek API key：")
+        logger.error("     LLM_API_KEY_HASH=<你的 key，去掉 sk- 前缀>")
+        logger.error("   或在 config/config.yaml 的 llm.api_key 填完整 key。")
+        logger.error("   获取地址: https://platform.deepseek.com/api_keys")
+        logger.error("=" * 60)
+    elif "YOUR_" in api_key or "HERE" in api_key.upper():
+        # 兜底：检测其它形式的占位符
+        logger.warning(
+            f"⚠️  LLM api_key 看起来是占位符 ({api_key[:20]}...)，"
+            "若非真实 key 请修改 config/.env"
+        )
+
+
 def setup_logging(config: dict):
     """配置日志"""
     lc = config.get("logging", {})
@@ -71,6 +101,10 @@ def setup_logging(config: dict):
 async def main():
     config = load_config()
     setup_logging(config)
+
+    # 启动前校验关键配置：空/占位符 api_key 会让 LLM 静默失败，
+    # 用户以为是 Bot 坏了。这里只告警不退出（用户可能想先跑起来看 WebUI）。
+    _warn_if_api_key_missing(config)
 
     # 延迟导入（确保日志先配好）
     from src.bot import QQBot
