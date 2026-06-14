@@ -30,6 +30,7 @@
       <a class="nav-item" data-page="config">⚙️ <span>配置</span></a>
       <a class="nav-item" data-page="memory">🧠 <span>记忆</span></a>
       <a class="nav-item" data-page="skills">🎯 <span>技能</span></a>
+      <a class="nav-item" data-page="personalities">🎭 <span>人格</span></a>
       <a class="nav-item" data-page="tools">🔧 <span>工具</span></a>
       <a class="nav-item" data-page="logs">📋 <span>日志</span></a>
     </nav>
@@ -155,10 +156,36 @@
     <section class="page" id="page-skills">
       <header class="page-header">
         <h1>技能</h1>
-        <button class="btn btn-ghost" onclick="loadSkills()">刷新</button>
+        <div class="inline-controls">
+          <button class="btn btn-ghost" onclick="loadSkills()">刷新</button>
+          <button class="btn btn-ghost" onclick="openSkillsFolder()">📁 打开 skills 文件夹</button>
+        </div>
       </header>
-      <div class="hint">改触发词或启停后立即生效（无需重启）。触发词留空则使用技能默认值。</div>
+      <div class="hint">改触发词或启停后立即生效（无需重启）。触发词留空则使用技能默认值。<br>
+        要添加新技能：点「打开 skills 文件夹」，放入 .py 技能文件（参照 sheng_tu.py），回到这里点刷新。</div>
       <div id="skills-list" class="skills-list">加载中…</div>
+    </section>
+
+    <!-- 人格预设 -->
+    <section class="page" id="page-personalities">
+      <header class="page-header">
+        <h1>人格预设</h1>
+        <div class="inline-controls">
+          <button class="btn btn-ghost" onclick="loadPersonalities()">刷新</button>
+          <button class="btn btn-ghost" onclick="reloadPersonalities()">↻ 重新扫描目录</button>
+          <button class="btn btn-ghost" onclick="openPersonalitiesFolder()">📁 打开文件夹</button>
+        </div>
+      </header>
+      <div class="hint">
+        <strong>ChatLuna 风格预设</strong>：每份人格是一个 <code>config/personalities/*.yaml</code> 文件。
+        支持占位符 <code>{'{bot_name}'}</code> <code>{'{master_id}'}</code> <code>{'{group_id}'}</code>
+        （master_id 为空时，含该占位符的 prompt 整条跳过）。切换后立即生效，无需重启。<br>
+        要添加新预设：点「打开文件夹」，放入 .yaml 文件，回到这里点「重新扫描目录」。
+      </div>
+      <div id="personalities-list" class="skills-list">加载中…</div>
+
+      <h2 class="section-title" id="preset-editor-title" style="display:none;">编辑预设</h2>
+      <div id="preset-editor" style="display:none;"></div>
     </section>
 
     <!-- 工具 -->

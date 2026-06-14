@@ -444,3 +444,22 @@ body {
   .config-field { grid-template-columns: 1fr; gap: 6px; }
   .config-field .cf-status { text-align: left; }
 }
+
+/* ── 人格预设：激活卡片高亮 + 编辑器 ── */
+.skill-card.preset-active {
+  border-color: var(--green-border);
+  box-shadow: 0 0 0 1px var(--green-border), var(--shadow-sm);
+  background: linear-gradient(0deg, var(--green-soft) 0%, var(--bg-surface) 35%);
+}
+.sc-head .badge { margin-left: 6px; font-weight: 500; }
+
+.preset-meta-row { gap: 12px; }
+.preset-prompt-row textarea.pe-content {
+  font-size: 12.5px; line-height: 1.5;
+  background: var(--bg-inset);
+}
+#preset-editor {
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 16px 18px; margin-top: 12px;
+}
+

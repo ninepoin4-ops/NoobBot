@@ -40,6 +40,12 @@ def create_app(bot, config: dict) -> web.Application:
     from webui.handlers.groups_api import (
         groups_list_handler, groups_toggle_handler,
     )
+    from webui.handlers.personalities_api import (
+        personalities_list_handler, personalities_detail_handler,
+        personalities_activate_handler, personalities_reload_handler,
+        personalities_save_handler, personalities_delete_handler,
+        personalities_open_folder_handler, skills_open_folder_handler,
+    )
 
     app.router.add_get("/api/dashboard", dashboard_handler)
     app.router.add_get("/api/ws", ws_events_handler)
@@ -64,6 +70,17 @@ def create_app(bot, config: dict) -> web.Application:
     app.router.add_get("/api/skills", skills_list_handler)
     app.router.add_post("/api/skills/{name}/triggers", skills_set_triggers_handler)
     app.router.add_post("/api/skills/{name}/toggle", skills_toggle_handler)
+    app.router.add_post("/api/skills/open-folder", skills_open_folder_handler)
+
+    # 人格预设
+    app.router.add_get("/api/personalities", personalities_list_handler)
+    app.router.add_get("/api/personalities/active", personalities_list_handler)  # 别名
+    app.router.add_post("/api/personalities/activate", personalities_activate_handler)
+    app.router.add_post("/api/personalities/reload", personalities_reload_handler)
+    app.router.add_post("/api/personalities/open-folder", personalities_open_folder_handler)
+    app.router.add_get("/api/personalities/{key}", personalities_detail_handler)
+    app.router.add_post("/api/personalities/{key}", personalities_save_handler)
+    app.router.add_delete("/api/personalities/{key}", personalities_delete_handler)
 
     # 工具
     app.router.add_get("/api/tools", tools_list_handler)

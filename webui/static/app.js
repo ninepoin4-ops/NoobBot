@@ -65,6 +65,7 @@ function switchPage(page) {
   if (page === 'config' && typeof loadConfig === 'function') loadConfig();
   if (page === 'memory' && typeof loadMemGroups === 'function') loadMemGroups();
   if (page === 'skills' && typeof loadSkills === 'function') loadSkills();
+  if (page === 'personalities' && typeof loadPersonalities === 'function') loadPersonalities();
   if (page === 'tools' && typeof loadTools === 'function') loadTools();
 }
 
@@ -806,6 +807,229 @@ async function toggleSkill(name, enabled) {
   } else {
     showToast('操作失败', 'error');
     loadSkills();
+  }
+}
+
+// ── 打开 skills 文件夹 ──
+async function openSkillsFolder() {
+  const resp = await fetchJSON('/api/skills/open-folder', { method: 'POST' });
+  if (resp && resp.ok) {
+    showToast(`已打开：${resp.path}`, 'success');
+  } else {
+    showToast(`打开失败：${(resp && resp.error) || ''}`, 'error');
+  }
+}
+
+// ============================================================
+// 人格预设管理页
+// ============================================================
+let ACTIVE_PERSONALITY = '';
+
+async function loadPersonalities() {
+  const resp = await fetchJSON('/api/personalities');
+  if (!resp || !resp.ok) { showToast('加载失败', 'error'); return; }
+  ACTIVE_PERSONALITY = resp.active || '';
+  const box = $('personalities-list');
+  box.innerHTML = '';
+  if (!resp.data || resp.data.length === 0) {
+    box.innerHTML = '<div class="hint">未加载任何预设。点「打开文件夹」放入 yaml 文件后点「重新扫描目录」。</div>';
+    return;
+  }
+  resp.data.forEach(p => box.appendChild(renderPresetCard(p)));
+  // 隐藏编辑器（切换卡片时重置）
+  hidePresetEditor();
+}
+
+function renderPresetCard(p) {
+  const card = el('div', 'skill-card' + (p.active ? ' preset-active' : ''));
+  // head
+  const head = el('div', 'sc-head');
+  const nameArea = el('div', '');
+  nameArea.appendChild(el('span', 'sc-name', p.name));
+  nameArea.appendChild(el('span', 'badge badge-grey', p.key));
+  if (p.active) nameArea.appendChild(el('span', 'badge badge-green', '当前激活'));
+  head.appendChild(nameArea);
+  // 激活按钮（已激活则禁用）
+  const actBtn = el('button', 'btn ' + (p.active ? 'btn-ghost' : 'btn-primary'), p.active ? '已激活' : '切换激活');
+  actBtn.disabled = !!p.active;
+  if (!p.active) actBtn.addEventListener('click', () => activatePersonality(p.key));
+  head.appendChild(actBtn);
+  card.appendChild(head);
+  // keywords
+  const chips = el('div', 'sc-triggers');
+  (p.keywords || []).forEach(k => chips.appendChild(el('span', 'trigger-chip', k)));
+  if (chips.children.length === 0) chips.appendChild(el('span', 'cf-help', '（无关键词）'));
+  card.appendChild(chips);
+  // 操作区
+  const edit = el('div', 'sc-edit');
+  const editBtn = el('button', 'btn btn-ghost', '✏️ 编辑');
+  editBtn.addEventListener('click', () => openPresetEditor(p.key));
+  edit.appendChild(editBtn);
+  if (p.key !== 'default' && !p.active) {
+    const delBtn = el('button', 'btn btn-ghost', '🗑 删除');
+    delBtn.style.color = 'var(--red)';
+    delBtn.addEventListener('click', () => deletePersonality(p.key));
+    edit.appendChild(delBtn);
+  }
+  card.appendChild(edit);
+  return card;
+}
+
+async function activatePersonality(key) {
+  if (!confirm(`确认切换到预设 [${key}]？切换后立即生效。`)) return;
+  const resp = await fetchJSON('/api/personalities/activate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: key }),
+  });
+  if (resp && resp.ok) {
+    showToast('已切换，立即生效', 'success');
+    loadPersonalities();
+  } else {
+    showToast(`切换失败：${(resp && resp.message) || (resp && resp.error) || ''}`, 'error');
+  }
+}
+
+async function reloadPersonalities() {
+  const resp = await fetchJSON('/api/personalities/reload', { method: 'POST' });
+  if (resp && resp.ok) {
+    showToast(`已重新加载（${resp.count} 个预设）`, 'success');
+    loadPersonalities();
+  } else {
+    showToast(`加载失败：${(resp && resp.error) || ''}`, 'error');
+  }
+}
+
+async function openPersonalitiesFolder() {
+  const resp = await fetchJSON('/api/personalities/open-folder', { method: 'POST' });
+  if (resp && resp.ok) {
+    showToast(`已打开：${resp.path}`, 'success');
+  } else {
+    showToast(`打开失败：${(resp && resp.error) || ''}`, 'error');
+  }
+}
+
+// ── 编辑器 ──
+let EDITING_KEY = null;
+
+async function openPresetEditor(key) {
+  const resp = await fetchJSON(`/api/personalities/${encodeURIComponent(key)}`);
+  if (!resp || !resp.ok) { showToast('加载预设失败', 'error'); return; }
+  const p = resp.data;
+  EDITING_KEY = key;
+
+  const box = $('preset-editor');
+  box.innerHTML = '';
+  $('preset-editor-title').style.display = '';
+  box.style.display = '';
+
+  // name + keywords
+  const metaRow = el('div', 'preset-meta-row');
+  metaRow.style.cssText = 'display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;';
+  const nameWrap = el('div', ''); nameWrap.style.flex = '1';
+  nameWrap.appendChild(el('div', 'cf-help', '显示名'));
+  const nameInput = el('input', 'input'); nameInput.id = 'pe-name'; nameInput.value = p.name;
+  nameWrap.appendChild(nameInput);
+  metaRow.appendChild(nameWrap);
+  const kwWrap = el('div', ''); kwWrap.style.flex = '2';
+  kwWrap.appendChild(el('div', 'cf-help', '关键词（逗号分隔，仅展示用）'));
+  const kwInput = el('input', 'input'); kwInput.id = 'pe-keywords';
+  kwInput.value = (p.keywords || []).join(', ');
+  kwWrap.appendChild(kwInput);
+  metaRow.appendChild(kwWrap);
+  box.appendChild(metaRow);
+
+  // prompts 编辑（textarea for each prompt's content + role select）
+  box.appendChild(el('div', 'cf-help', 'Prompts（每条一行；role 选 system/user/assistant）'));
+  const promptsBox = el('div', ''); promptsBox.id = 'pe-prompts';
+  box.appendChild(promptsBox);
+  (p.prompts || []).forEach((pr, i) => promptsBox.appendChild(makePromptRow(pr, i)));
+
+  // 加一条空 prompt 的按钮
+  const addBtn = el('button', 'btn btn-ghost', '+ 添加一条 prompt');
+  addBtn.addEventListener('click', () => {
+    const box2 = $('pe-prompts');
+    box2.appendChild(makePromptRow({ role: 'system', content: '' }, box2.children.length));
+  });
+  box.appendChild(addBtn);
+
+  // 占位符提示
+  box.appendChild(el('div', 'cf-help',
+    '占位符：{bot_name} {master_id} {group_id}（master_id 为空时含该占位符的 prompt 整条跳过）'));
+
+  // 保存/取消
+  const btnRow = el('div', 'inline-controls'); btnRow.style.marginTop = '12px';
+  const saveBtn = el('button', 'btn btn-primary', '保存');
+  saveBtn.addEventListener('click', () => savePersonality(key));
+  const cancelBtn = el('button', 'btn btn-ghost', '取消');
+  cancelBtn.addEventListener('click', hidePresetEditor);
+  btnRow.appendChild(saveBtn);
+  btnRow.appendChild(cancelBtn);
+  box.appendChild(btnRow);
+}
+
+function makePromptRow(pr, idx) {
+  const wrap = el('div', 'preset-prompt-row');
+  wrap.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;';
+  const sel = el('select', 'input'); sel.style.flex = '0 0 120px'; sel.className = 'pe-role';
+  ['system', 'user', 'assistant'].forEach(r => {
+    const o = el('option'); o.value = r; o.textContent = r;
+    if (r === (pr.role || 'system')) o.selected = true;
+    sel.appendChild(o);
+  });
+  wrap.appendChild(sel);
+  const ta = el('textarea', 'input pe-content');
+  ta.rows = 4; ta.value = pr.content || '';
+  ta.style.flex = '1'; ta.style.fontFamily = 'monospace'; ta.style.resize = 'vertical';
+  wrap.appendChild(ta);
+  const delBtn = el('button', 'btn btn-ghost', '✕');
+  delBtn.style.color = 'var(--red)';
+  delBtn.title = '删除这条';
+  delBtn.addEventListener('click', () => { wrap.remove(); });
+  wrap.appendChild(delBtn);
+  return wrap;
+}
+
+function hidePresetEditor() {
+  EDITING_KEY = null;
+  $('preset-editor').innerHTML = '';
+  $('preset-editor').style.display = 'none';
+  $('preset-editor-title').style.display = 'none';
+}
+
+async function savePersonality(key) {
+  const name = $('pe-name').value.trim() || key;
+  const keywords = $('pe-keywords').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  const rows = document.querySelectorAll('#pe-prompts .preset-prompt-row');
+  const prompts = [];
+  rows.forEach(row => {
+    const role = row.querySelector('.pe-role').value;
+    const content = row.querySelector('.pe-content').value;
+    if (content.trim()) prompts.push({ role, content });
+  });
+  if (prompts.length === 0) { showToast('至少需要一条 prompt', 'error'); return; }
+
+  const resp = await fetchJSON(`/api/personalities/${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, keywords, prompts }),
+  });
+  if (resp && resp.ok) {
+    showToast('已保存', 'success');
+    loadPersonalities();
+  } else {
+    showToast(`保存失败：${(resp && resp.error) || ''}`, 'error');
+  }
+}
+
+async function deletePersonality(key) {
+  if (!confirm(`确认删除预设 [${key}]？此操作不可撤销。`)) return;
+  const resp = await fetchJSON(`/api/personalities/${encodeURIComponent(key)}`, { method: 'DELETE' });
+  if (resp && resp.ok) {
+    showToast('已删除', 'success');
+    loadPersonalities();
+  } else {
+    showToast(`删除失败：${(resp && resp.error) || ''}`, 'error');
   }
 }
 

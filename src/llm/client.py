@@ -26,8 +26,15 @@ class LLMClient:
             base_url=lc["base_url"],
         )
 
+        # 人格预设管理器（由 bot.py 注入；未注入时走下方硬编码兜底）
+        self._personality_manager = None
+
     # 工具调用最大轮数，防止 LLM 反复触发工具导致无限递归
     MAX_TOOL_ROUNDS = 4
+
+    def set_personality_manager(self, pm) -> None:
+        """注入人格预设管理器（由 QQBot 构造时调用）。"""
+        self._personality_manager = pm
 
     async def chat(self, messages: list[dict],
                    tools: list[dict] | None = None,
@@ -178,7 +185,24 @@ class LLMClient:
                                      bot_name: str,
                                      memory_context: str,
                                      master_id: str = "") -> str:
-        """生成系统提示词"""
+        """生成系统提示词（单字符串版本，向后兼容）。
+
+        优先走注入的人格预设管理器（支持多 role），未注入时回退硬编码。
+        返回所有 system-role 内容拼接的字符串；user/assistant 角色的 prompt
+        会被拼到字符串里（保持返回值是 str 的契约）。
+        """
+        if self._personality_manager is not None:
+            messages = self._personality_manager.render_system_prompt(
+                bot_name=bot_name, master_id=master_id,
+                group_id=group_id, memory_context=memory_context,
+            )
+            # 拼 system 段；非 system 段（user/assistant）单独成块
+            parts = []
+            for m in messages:
+                parts.append(m["content"])
+            return "\n".join(p for p in parts if p)
+
+        # 硬编码兜底（无 manager 时）
         parts = [
             f"你是{bot_name}，一个可爱的 QQ 群聊 AI 助手。",
             f"你当前在群ID: {group_id}，此群的对话和记忆独立于其他群。",

@@ -41,6 +41,12 @@ class QQBot:
         self.llm = LLMClient(config)
         self.memory = MemoryManager(config, self.llm)
 
+        # 人格预设管理器（config/personalities/*.yaml），注入到 LLM
+        from src.personalities.manager import PersonalityManager
+        self.personalities = PersonalityManager(config)
+        self.personalities.load_all()
+        self.llm.set_personality_manager(self.personalities)
+
         # 注册全局调度器引用
         state.scheduler_instance = self.scheduler
 

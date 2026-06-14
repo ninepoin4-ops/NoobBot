@@ -48,6 +48,18 @@ def _apply_bot_name(bot, v):
 def _apply_master_id(bot, v):
     bot.config.setdefault("bot", {})["master_id"] = v
 
+def _apply_active_personality(bot, v):
+    """热生效：切换激活人格预设，立即重新加载并应用。"""
+    v = str(v or "default").strip() or "default"
+    pm = getattr(bot, "personalities", None)
+    if pm is None:
+        raise ValueError("人格预设管理器未初始化")
+    # 切换前先 reload 一次，确保用户刚放进来的新预设被扫到
+    pm.reload()
+    if not pm.set_active(v):
+        raise ValueError(f"人格预设 '{v}' 不存在")
+    _set_nested(bot.config, "bot.active_personality", v)
+
 def _apply_random_freq(bot, v):
     bot.activator.random_freq = float(v)
     _set_nested(bot.config, "engagement.random_reply_frequency", v)
@@ -119,6 +131,7 @@ def _apply_log_level(bot, v):
 HOT_APPLIERS = {
     "bot.name": _apply_bot_name,
     "bot.master_id": _apply_master_id,
+    "bot.active_personality": _apply_active_personality,
     "engagement.random_reply_frequency": _apply_random_freq,
     "engagement.bot_names": _apply_bot_names,
     "engagement.name_match_mode": _apply_name_match_mode,

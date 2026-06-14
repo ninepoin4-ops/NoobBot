@@ -1,6 +1,7 @@
 bot:
   name: 小白
   master_id: ''
+  active_personality: default
 napcat:
   mode: forward
   max_concurrent_handlers: 4
