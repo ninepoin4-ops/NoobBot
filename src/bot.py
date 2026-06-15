@@ -77,15 +77,39 @@ class QQBot:
         # 设置调度器的发送函数
         self.scheduler.set_send_fn(self._send_group_msg_by_id)
 
+        # NapCat 自动愈合（仅 forward 模式 + 扫码登录用户需要）。
+        # import/构造失败不影响主流程。
+        self._auto_heal = None
+        self._heal_task = None
+        try:
+            from src.napcat.auto_heal import NapCatAutoHeal
+            self._auto_heal = NapCatAutoHeal(self.napcat, config)
+        except Exception as e:
+            logger.debug(f"自动愈合初始化失败（已忽略）: {e}")
+
     async def start(self):
         """启动所有模块"""
         logger.info(f"Bot [{self.bot_name}] 启动中...")
         # 加载技能（传入 config 让 manager 应用触发词/启停覆盖）
         skill_manager.load_all(self.config)
         await self.scheduler.start()
+        # napcat.start() 会永久阻塞（重连循环），后台任务必须先启动。
+        # 自动愈合：持续连不上时，扫磁盘找已登录 QQ 并补写 WS 配置。
+        if self._auto_heal is not None:
+            self._heal_task = asyncio.create_task(self._auto_heal.run())
         await self.napcat.start()
 
     async def stop(self):
+        # 先停自动愈合循环，再关连接（避免愈合循环在连接被拆后还在跑）
+        if self._auto_heal is not None:
+            self._auto_heal.stop()
+        if self._heal_task is not None:
+            self._heal_task.cancel()
+            try:
+                # 带超时等待，避免任务意外忽略取消导致 Bot 永远退不出
+                await asyncio.wait_for(self._heal_task, timeout=5)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                pass
         await self.napcat.stop()
         await self.scheduler.stop()
         logger.info("Bot 已停止")
